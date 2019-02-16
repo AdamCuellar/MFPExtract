@@ -5,9 +5,11 @@
 
 import myfitnesspal
 import re
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Fill, PatternFill
 import easygui
 from easygui import multpasswordbox
+from easygui import enterbox
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import (QWidget, QProgressBar, QPushButton, QApplication)
 from datetime import date
@@ -18,6 +20,64 @@ startText = ""
 finishText = ""
 username = ""
 password = ""
+isNew = False
+
+# makes a new spreadsheet with cool format
+def makeNewSpreadsheet(fileName, macros_sheet):
+
+        macros_sheet['A1'].value = "Date"
+        macros_sheet['A1'].font = Font(bold = True)
+        macros_sheet['A1'].fill = PatternFill("solid", fgColor = "F08080")
+
+        macros_sheet.merge_cells('B1:F1')
+        macros_sheet['B1'].value = "Macros"
+        macros_sheet['B1'].font = Font(bold = True)
+        macros_sheet['B1'].fill = PatternFill("solid", fgColor = "F08080")
+
+        macros_sheet.merge_cells('G1:H1')
+        macros_sheet['G1'].value = "Electrolytes"
+        macros_sheet['G1'].font = Font(bold = True)
+        macros_sheet['G1'].fill = PatternFill("solid", fgColor = "F08080")
+
+        macros_sheet.cell(2,1).value = ""
+        macros_sheet.cell(2,1).font = Font(bold = True)
+        macros_sheet.cell(2,1).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+        macros_sheet.cell(2,2).value = "Protein"
+        macros_sheet.cell(2,2).font = Font(bold = True)
+        macros_sheet.cell(2,2).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,3).value = "Carbs"
+        macros_sheet.cell(2,3).font = Font(bold = True)
+        macros_sheet.cell(2,3).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,4).value = "Fat"
+        macros_sheet.cell(2,4).font = Font(bold = True)
+        macros_sheet.cell(2,4).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,5).value = "Fiber"
+        macros_sheet.cell(2,5).font = Font(bold = True)
+        macros_sheet.cell(2,5).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,6).value = "Total Cals"
+        macros_sheet.cell(2,6).font = Font(bold = True)
+        macros_sheet.cell(2,6).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,7).value = "SODIUM"
+        macros_sheet.cell(2,7).font = Font(bold = True)
+        macros_sheet.cell(2,7).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+
+        macros_sheet.cell(2,8).value = "POTASSIUM"
+        macros_sheet.cell(2,8).font = Font(bold = True)
+        macros_sheet.cell(2,8).fill = PatternFill("solid", fgColor = "D3D3D3")
+
+        return
 
 # create login GUI
 def loginGUI():
@@ -69,16 +129,25 @@ def parseForExcel(dictionary, line, sh, date):
     sh.cell(line,8).value = sodium
 
 # extracts proper info from mfp
-def extractInfo(StartDate,EndDate, fileName,self):
+def extractInfo(StartDate,EndDate, fileName,self, createNew):
 
-    completion = 0
+    completion = 5
 
-    # open existing excel file and retrieve first sheet
-    book = load_workbook(fileName)
-    macros_sheet = book['Macros']
+    # if they're lame and don't already have a spreadsheet, make one for them
+    # otherwise, proceed with chosen spreadsheet
+    if(createNew is True):
+        book = Workbook()
+        macros_sheet = book.active
+        macros_sheet.title = "Macros"
+        makeNewSpreadsheet(fileName, macros_sheet)
+        line = 3
+    else:
+        # open existing excel file and retrieve first sheet
+        book = load_workbook(fileName)
+        macros_sheet = book['Macros']
 
-    # get last written in line number (skips 2 to leave extra space for in between weeks)
-    line = macros_sheet.max_row + 2
+        # get last written in line number (skips 2 to leave extra space for in between weeks)
+        line = macros_sheet.max_row + 2
 
     # open login UI
     loginGUI()
@@ -90,12 +159,13 @@ def extractInfo(StartDate,EndDate, fileName,self):
     while client is None:
         if loginAttempts is 3:
             easygui.msgbox("You've exceeded the maximum Log In attempts", "Warning")
+            self.progress.setValue(0)
             return
 
         try:
+            self.progress.setValue(completion)
             # assign account name to client and track for invalid credentials
             client = myfitnesspal.Client(username, password)
-            self.progress.setValue(completion)
         except:
             loginAttempts += 1
             easygui.msgbox("Invalid Credentials. Please Try Again", "Warning")
@@ -109,8 +179,8 @@ def extractInfo(StartDate,EndDate, fileName,self):
     a = date(int(StartDateArr[2]),int(StartDateArr[0]),int(StartDateArr[1]))
     b = date(int(EndDateArr[2]),int(EndDateArr[0]),int(EndDateArr[1]))
 
-    # calucate total number of days for progress bar
-    numDays = (b-a).days
+    # calculate percentage increments for progress bar
+    increment = 100/(b-a).days - 5/(b-a).days
 
     # iterate through each day
     for dt in rrule(DAILY, dtstart = a, until = b):
@@ -118,9 +188,9 @@ def extractInfo(StartDate,EndDate, fileName,self):
         month = int(dt.strftime("%m"))
         day = int(dt.strftime("%d"))
         dictionary = client.get_date(year, month, day).totals
-        line += 1
         parseForExcel(dictionary,line, macros_sheet, dt.strftime("%-m/%-d/%Y"))
-        completion += 100/numDays
+        line += 1
+        completion += increment
         self.progress.setValue(completion)
 
     book.save(fileName)
@@ -139,13 +209,16 @@ class Ui_MainWindow(object):
         self.centralWidget = QtWidgets.QWidget(MainWindow)
         self.centralWidget.setObjectName("centralWidget")
         self.calendarWidget = QtWidgets.QCalendarWidget(self.centralWidget)
-        self.calendarWidget.setGeometry(QtCore.QRect(20, 20, 221, 200))
+        self.calendarWidget.setGeometry(QtCore.QRect(20, 20, 270, 200))
         self.progress = QProgressBar(self.centralWidget)
-        self.progress.setGeometry(QtCore.QRect(18, 255, 221, 20))
+        self.progress.setGeometry(QtCore.QRect(18, 255, 270, 20))
         self.calendarWidget.setObjectName("calendarWidget")
         self.pushButton = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButton.setGeometry(QtCore.QRect(400, 310, 131, 27))
+        self.pushButton.setGeometry(QtCore.QRect(400, 290, 131, 27))
         self.pushButton.setObjectName("pushButton")
+        self.pushButton_2 = QtWidgets.QPushButton(self.centralWidget)
+        self.pushButton_2.setGeometry(QtCore.QRect(400, 250, 131, 27))
+        self.pushButton_2.setObjectName("pushButton_2")
         self.lineEdit = QtWidgets.QLineEdit(self.centralWidget)
         self.lineEdit.setGeometry(QtCore.QRect(470, 40, 113, 27))
         self.lineEdit.setObjectName("lineEdit")
@@ -176,16 +249,19 @@ class Ui_MainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MFP Extractor"))
         self.pushButton.setText(_translate("MainWindow", "Edit Spreadsheet"))
+        self.pushButton_2.setText(_translate("MainWindow", "Create Spreadsheet"))
         self.label.setText(_translate("MainWindow", "Starting Date (MM/DD/YYYY): "))
         self.label_2.setText(_translate("MainWindow", "End Date (MM/DD/YYYY): "))
         self.label_3.setText(_translate("MainWindow", "Progress:"))
         self.pushButton.clicked.connect(self.clickedOpenSpreadsheet)
+        self.pushButton_2.clicked.connect(self.clickedNewSpreadsheet)
 
 
     # read and redirect inputted dates
     def clickedOpenSpreadsheet(self):
         global startText
         global finishText
+        global isNew
         startText = self.lineEdit.text()
         finishText = self.lineEdit_2.text()
         x = re.search("[0-9]{2}/[0-9]{2}/[0-9]{4}",startText);
@@ -196,9 +272,30 @@ class Ui_MainWindow(object):
             easygui.msgbox("Incorrect Date Format", "Warning")
         else:
             fileName = easygui.fileopenbox()
-            extractInfo(startText,finishText,fileName,self)
+            extractInfo(startText,finishText,fileName,self, False)
 
         return
+
+    # same as above except make a new spreadsheet
+    def clickedNewSpreadsheet(self):
+        global startText
+        global finishText
+        global isNew
+        startText = self.lineEdit.text()
+        finishText = self.lineEdit_2.text()
+        x = re.search("[0-9]{2}/[0-9]{2}/[0-9]{4}",startText);
+        y = re.search("[0-9]{2}/[0-9]{2}/[0-9]{4}",finishText);
+
+        # warn user if date format is incorrect, else open find file dialog
+        if x is None or y is None:
+            easygui.msgbox("Incorrect Date Format", "Warning")
+        else:
+            fileName = enterbox("Enter a name for the new spreadsheet:") + ".xlsx"
+            extractInfo(startText,finishText,fileName,self, True)
+
+        return
+
+
 
 
 if __name__ == "__main__":
