@@ -5,6 +5,9 @@
 
 import myfitnesspal
 import re
+import plotly
+import plotly.plotly as plot
+import plotly.graph_objs as graph
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Fill, PatternFill
 import easygui
@@ -20,7 +23,60 @@ startText = ""
 finishText = ""
 username = ""
 password = ""
+
 isNew = False
+
+# graph things
+def analyze(fileName):
+
+    avgCals = 0
+    avgProtein = 0
+    avgFat = 0
+    avgCarbs = 0
+    avgSodium = 0
+    filledLines = 0;
+
+    # open existing excel file and retrieve first sheet
+    book = load_workbook(fileName)
+    macros_sheet = book['Macros']
+
+    maxRow = macros_sheet.max_row
+
+    # read info
+    for i in range(5,maxRow):
+        if macros_sheet.cell(i,2).value is not None:
+            avgProtein += macros_sheet.cell(i,2).value
+        if macros_sheet.cell(i,6).value is not None:
+            avgCals += macros_sheet.cell(i,6).value
+            filledLines += 1
+        if macros_sheet.cell(i,4).value is not None:
+            avgFat += macros_sheet.cell(i,4).value
+        if macros_sheet.cell(i,3).value is not None:
+            avgCarbs += macros_sheet.cell(i,3).value
+        if macros_sheet.cell(i,7).value is not None:
+            avgSodium += macros_sheet.cell(i,7).value
+
+    avgCals /= filledLines
+    avgProtein /= filledLines
+    avgFat /= filledLines
+    avgSodium /= filledLines
+    avgCarbs /= filledLines
+
+    plotly.offline.init_notebook_mode(connected=True)
+
+    plotly.offline.plot({
+        "data": [graph.Bar(x=["Total Cals", "Pro", "Carbs", "Fat", "Sodium"],
+                               y=[avgCals, avgProtein, avgCarbs, avgFat, avgSodium],
+                               text= [int(avgCals), int(avgProtein), int(avgCarbs), int(avgFat), int(avgSodium)],
+                               textposition = 'auto')],
+        "layout": graph.Layout(title="Averages")
+    }, auto_open = True)
+
+
+    return
+
+
+
 
 # makes a new spreadsheet with cool format
 def makeNewSpreadsheet(fileName, macros_sheet):
@@ -116,6 +172,7 @@ def parseForExcel(dictionary, line, sh, date):
     sugar = dictionary.get("sugar")
     potassium = dictionary.get("potassium")
 
+
     # write info to respective column + row on sheet
     sh.cell(line,1).value = date
     sh.cell(line,2).value = pro
@@ -126,7 +183,7 @@ def parseForExcel(dictionary, line, sh, date):
     sh.cell(line,6).value = cals
     sh.cell(line,7).value = sodium
     # riw reserved for potassium, currently not working
-    sh.cell(line,8).value = sodium
+    sh.cell(line,8).value = 0
 
 # extracts proper info from mfp
 def extractInfo(StartDate,EndDate, fileName,self, createNew):
@@ -214,11 +271,14 @@ class Ui_MainWindow(object):
         self.progress.setGeometry(QtCore.QRect(18, 255, 270, 20))
         self.calendarWidget.setObjectName("calendarWidget")
         self.pushButton = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButton.setGeometry(QtCore.QRect(400, 290, 131, 27))
+        self.pushButton.setGeometry(QtCore.QRect(400, 250, 131, 27))
         self.pushButton.setObjectName("pushButton")
         self.pushButton_2 = QtWidgets.QPushButton(self.centralWidget)
-        self.pushButton_2.setGeometry(QtCore.QRect(400, 250, 131, 27))
+        self.pushButton_2.setGeometry(QtCore.QRect(400, 290, 131, 27))
         self.pushButton_2.setObjectName("pushButton_2")
+        self.pushButton_3 = QtWidgets.QPushButton(self.centralWidget)
+        self.pushButton_3.setGeometry(QtCore.QRect(400, 330, 131, 27))
+        self.pushButton_3.setObjectName("pushButton_3")
         self.lineEdit = QtWidgets.QLineEdit(self.centralWidget)
         self.lineEdit.setGeometry(QtCore.QRect(470, 40, 113, 27))
         self.lineEdit.setObjectName("lineEdit")
@@ -250,11 +310,13 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(_translate("MainWindow", "MFP Extractor"))
         self.pushButton.setText(_translate("MainWindow", "Edit Spreadsheet"))
         self.pushButton_2.setText(_translate("MainWindow", "Create Spreadsheet"))
+        self.pushButton_3.setText(_translate("MainWindow", "Analyze Spreadsheet"))
         self.label.setText(_translate("MainWindow", "Starting Date (MM/DD/YYYY): "))
         self.label_2.setText(_translate("MainWindow", "End Date (MM/DD/YYYY): "))
         self.label_3.setText(_translate("MainWindow", "Progress:"))
         self.pushButton.clicked.connect(self.clickedOpenSpreadsheet)
         self.pushButton_2.clicked.connect(self.clickedNewSpreadsheet)
+        self.pushButton_3.clicked.connect(self.clickedAnalyzeSpreadsheet)
 
 
     # read and redirect inputted dates
@@ -295,6 +357,10 @@ class Ui_MainWindow(object):
 
         return
 
+    # open a spreadsheet
+    def clickedAnalyzeSpreadsheet(self):
+        fileName = easygui.fileopenbox()
+        analyze(fileName)
 
 
 
